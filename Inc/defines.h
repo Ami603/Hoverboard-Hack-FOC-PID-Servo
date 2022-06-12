@@ -102,11 +102,11 @@
 
 // #define DCLINK_ADC ADC3
 // #define DCLINK_CHANNEL
-//#define DCLINK_PIN GPIO_PIN_2    //this i changed pin 1
-//#define DCLINK_PORT GPIOC        //this is changed to A
+#define DCLINK_PIN GPIO_PIN_2    //this i changed pin 1
+#define DCLINK_PORT GPIOC        //this is changed to A
 
-#define DCLINK_PIN GPIO_PIN_1    //v_batt_meas   was on C2
-#define DCLINK_PORT GPIOA
+//#define DCLINK_PIN GPIO_PIN_1    //v_batt_meas   was on C2
+//#define DCLINK_PORT GPIOA
 
 
 
@@ -116,33 +116,33 @@
 #define LED_PIN GPIO_PIN_2
 #define LED_PORT GPIOB
 
-//#define BUZZER_PIN GPIO_PIN_4
-//#define BUZZER_PORT GPIOA
+#define BUZZER_PIN GPIO_PIN_4
+#define BUZZER_PORT GPIOA
 
-#define BUZZER_PIN GPIO_PIN_13  //was A4
-#define BUZZER_PORT GPIOC
+//#define BUZZER_PIN GPIO_PIN_13  //was A4
+//#define BUZZER_PORT GPIOC
 
 
-//#define SWITCH_PIN GPIO_PIN_1
-//#define SWITCH_PORT GPIOA
-#define SWITCH_PIN GPIO_PIN_9  // was A1 also called AIN_V_BATT
-#define SWITCH_PORT GPIOB
+#define SWITCH_PIN GPIO_PIN_1
+#define SWITCH_PORT GPIOA
+//#define SWITCH_PIN GPIO_PIN_9  // was A1 also called AIN_V_BATT
+//#define SWITCH_PORT GPIOB
 
-//#define OFF_PIN GPIO_PIN_5
-//#define OFF_PORT GPIOA
-#define OFF_PIN GPIO_PIN_15   //was A5 aksi called SUPPLY_EN_MCU on diagram
-#define OFF_PORT GPIOC
+#define OFF_PIN GPIO_PIN_5
+#define OFF_PORT GPIOA
+//#define OFF_PIN GPIO_PIN_15   //was A5 aksi called SUPPLY_EN_MCU on diagram
+//#define OFF_PORT GPIOC
 
-//#define BUTTON_PIN GPIO_PIN_1
-//#define BUTTON_PORT GPIOA
-#define BUTTON_PIN GPIO_PIN_9  // thiss is the same as the switch pin now
-#define BUTTON_PORT GPIOB
+#define BUTTON_PIN GPIO_PIN_1
+#define BUTTON_PORT GPIOA
+//#define BUTTON_PIN GPIO_PIN_9  // thiss is the same as the switch pin now
+//#define BUTTON_PORT GPIOB
 
-//#define CHARGER_PIN GPIO_PIN_12
-//#define CHARGER_PORT GPIOA
-//CHARGER PIN IS SET TO PULLUP LATER IN THIS FILE
-#define CHARGER_PIN GPIO_PIN_11// was pin A12  
+#define CHARGER_PIN GPIO_PIN_12
 #define CHARGER_PORT GPIOA
+//CHARGER PIN IS SET TO PULLUP LATER IN THIS FILE
+//#define CHARGER_PIN GPIO_PIN_11// was pin A12  
+//#define CHARGER_PORT GPIOA
 
 
 
