@@ -270,11 +270,11 @@ void BLDC_Init(void) {
 
 void Input_Lim_Init(void) {     // Input Limitations - ! Do NOT touch !
   if (rtP_Left.b_fieldWeakEna || rtP_Right.b_fieldWeakEna) {
-    INPUT_MAX = MAX( 1000, FIELD_WEAK_HI);
-    INPUT_MIN = MIN(-1000,-FIELD_WEAK_HI);
+    INPUT_MAX = MAX( 250, FIELD_WEAK_HI);
+    INPUT_MIN = MIN(-250,-FIELD_WEAK_HI);
   } else {
-    INPUT_MAX =  1000;
-    INPUT_MIN = -1000;
+    INPUT_MAX =  250;
+    INPUT_MIN = -250;
   }
 }
 
