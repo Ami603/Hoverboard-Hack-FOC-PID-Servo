@@ -492,8 +492,8 @@ int main(void) {
 		cmdR = CLAMP(PIDR.output,-100,100);
 		}
     else {	
-		cmdL = CLAMP(PIDL.output,-1000,1000);
-		cmdR = CLAMP(PIDR.output,-1000,1000);	
+		cmdL = CLAMP(PIDL.output,-200,200);
+		cmdR = CLAMP(PIDR.output,-200,200);	
 		}	
 		pwml = cmdL;
 		pwmr = cmdR;
