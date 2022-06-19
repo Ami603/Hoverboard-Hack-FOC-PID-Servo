@@ -479,9 +479,11 @@ int main(void) {
       PIDL.input1 = -PIDR.input1;
     #endif       
 			
-			
-		PIDL.feedback = (MotorPosL*2000)/5400; // scale to 2000 units per rotation   sf = .37 =2000/(360 deg*15pole pairs= 5400 elec deg)
-		PIDR.feedback = (MotorPosR*2000)/5400;  //minimum step is 60 deg elec phase angle, or 4 deg mechanical angle
+		// changed scale of rotation to mechanical degrees, 90 steps is a full rotation
+		//	PIDL.feedback = (MotorPosL*2000)/5400; // scale to 2000 units per rotation   sf = .37 =2000/(360 deg*15pole pairs= 5400 elec deg)
+		//	PIDR.feedback = (MotorPosR*2000)/5400;  //minimum step is 60 deg elec phase angle, or 4 deg mechanical angle
+		PIDL.feedback = (MotorPosL*90)/5400; // scale to 2000 units per rotation   sf = .37 =2000/(360 deg*15pole pairs= 5400 elec deg)
+		PIDR.feedback = (MotorPosR*90)/5400;  //minimum step is 60 deg elec phase angle, or 4 deg mechanical angle
 		PID(&PIDL);// left pid control
 	  //print_PID(PIDL);  
 		PID(&PIDR);// right pid control
