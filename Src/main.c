@@ -482,20 +482,20 @@ int main(void) {
 		// changed scale of rotation to mechanical degrees, 90 steps is a full rotation
 		//	PIDL.feedback = (MotorPosL*2000)/5400; // scale to 2000 units per rotation   sf = .37 =2000/(360 deg*15pole pairs= 5400 elec deg)
 		//	PIDR.feedback = (MotorPosR*2000)/5400;  //minimum step is 60 deg elec phase angle, or 4 deg mechanical angle
-		PIDL.feedback = (MotorPosL*90)/5400; // scale to 2000 units per rotation   sf = .37 =2000/(360 deg*15pole pairs= 5400 elec deg)
-		PIDR.feedback = (MotorPosR*90)/5400;  //minimum step is 60 deg elec phase angle, or 4 deg mechanical angle
+		PIDL.feedback = (MotorPosL*2000)/5400; // scale to 2000 units per rotation   sf = .37 =2000/(360 deg*15pole pairs= 5400 elec deg)
+		PIDR.feedback = (MotorPosR*2000)/5400;  //minimum step is 60 deg elec phase angle, or 4 deg mechanical angle
 		PID(&PIDL);// left pid control
 	  //print_PID(PIDL);  
 		PID(&PIDR);// right pid control
 		//print_PID(PIDR);
 		//limit pwm to 100 during first five seconds to keep turn on transients safe
 		if(main_loop_counter < 1000){
-		cmdL = CLAMP(PIDL.output,-100,100);
-		cmdR = CLAMP(PIDR.output,-100,100);
+		cmdL = CLAMP(PIDL.output,-1000,1000);
+		cmdR = CLAMP(PIDR.output,-1000,1000);
 		}
     else {	
-		cmdL = CLAMP(PIDL.output,-200,200);
-		cmdR = CLAMP(PIDR.output,-200,200);	
+		cmdL = CLAMP(PIDL.output,-100,100);
+		cmdR = CLAMP(PIDR.output,-100,100);	
 		}	
 		pwml = cmdL;
 		pwmr = cmdR;
