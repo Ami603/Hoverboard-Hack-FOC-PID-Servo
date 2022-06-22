@@ -490,12 +490,12 @@ int main(void) {
 		//print_PID(PIDR);
 		//limit pwm to 100 during first five seconds to keep turn on transients safe
 		if(main_loop_counter < 1000){
-		cmdL = CLAMP(PIDL.output,-1000,1000);
-		cmdR = CLAMP(PIDR.output,-1000,1000);
+		cmdL = CLAMP(PIDL.output,-100,100);
+		cmdR = CLAMP(PIDR.output,-100,100);
 		}
     else {	
-		cmdL = CLAMP(PIDL.output,-100,100);
-		cmdR = CLAMP(PIDR.output,-100,100);	
+		cmdL = CLAMP(PIDL.output,-1000,1000);
+		cmdR = CLAMP(PIDR.output,-1000,1000);	
 		}	
 		pwml = cmdL;
 		pwmr = cmdR;
