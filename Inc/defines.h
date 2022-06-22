@@ -102,11 +102,11 @@
 
 // #define DCLINK_ADC ADC3
 // #define DCLINK_CHANNEL
-#define DCLINK_PIN GPIO_PIN_2    //this i changed pin 1
-#define DCLINK_PORT GPIOC        //this is changed to A
+//#define DCLINK_PIN GPIO_PIN_2    //this i changed pin 1
+//#define DCLINK_PORT GPIOC        //this is changed to A
 
-//#define DCLINK_PIN GPIO_PIN_1    //v_batt_meas   was on C2
-//#define DCLINK_PORT GPIOA
+#define DCLINK_PIN GPIO_PIN_1    //v_batt_meas   was on C2
+#define DCLINK_PORT GPIOA
 
 
 
