@@ -145,27 +145,6 @@
 //#define CHARGER_PORT GPIOA
 
 
-
-#if defined(CONTROL_PPM_LEFT)
-#define PPM_PIN             GPIO_PIN_3
-#define PPM_PORT            GPIOA
-#elif defined(CONTROL_PPM_RIGHT)
-#define PPM_PIN             GPIO_PIN_11
-#define PPM_PORT            GPIOB
-#endif
-
-#if defined(CONTROL_PWM_LEFT)
-#define PWM_PIN_CH1         GPIO_PIN_2
-#define PWM_PORT_CH1        GPIOA
-#define PWM_PIN_CH2         GPIO_PIN_3
-#define PWM_PORT_CH2        GPIOA
-#elif defined(CONTROL_PWM_RIGHT)
-#define PWM_PIN_CH1         GPIO_PIN_10
-#define PWM_PORT_CH1        GPIOB
-#define PWM_PIN_CH2         GPIO_PIN_11
-#define PWM_PORT_CH2        GPIOB
-#endif
-
 #if defined(SUPPORT_BUTTONS_LEFT)
 #define BUTTON1_PIN         GPIO_PIN_2
 #define BUTTON1_PORT        GPIOA
@@ -221,17 +200,6 @@ typedef struct {
   uint16_t temp;
   uint16_t l_rx2;
 } adc_buf_t;
-
-// Define I2C, Nunchuk, PPM, PWM functions
-void I2C_Init(void);
-void Nunchuk_Init(void);
-void Nunchuk_Read(void);
-uint8_t Nunchuk_Ping(void);
-void PPM_Init(void);
-void PPM_ISR_Callback(void);
-void PWM_Init(void);
-void PWM_ISR_CH1_Callback(void);
-void PWM_ISR_CH2_Callback(void);
 
 // Sideboard definitions
 #define LED1_SET            (0x01)

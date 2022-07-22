@@ -30,10 +30,6 @@
 #include "BLDC_controller.h"      /* BLDC's header file */
 #include "rtwtypes.h"
 
-#if defined(DEBUG_I2C_LCD) || defined(SUPPORT_LCD)
-#include "hd44780.h"
-#endif
-
 void SystemClock_Config(void);
 
 //------------------------------------------------------------------------
@@ -46,10 +42,7 @@ extern TIM_HandleTypeDef htim_right;
 extern ADC_HandleTypeDef hadc1;
 extern ADC_HandleTypeDef hadc2;
 extern volatile adc_buf_t adc_buffer;
-#if defined(DEBUG_I2C_LCD) || defined(SUPPORT_LCD)
-  extern LCD_PCF8574_HandleTypeDef lcd;
-  extern uint8_t LCDerrorFlag;
-#endif
+
 
 extern UART_HandleTypeDef huart2;
 extern UART_HandleTypeDef huart3;
@@ -96,13 +89,7 @@ extern SerialSideboard Sideboard_L;
 #if defined(SIDEBOARD_SERIAL_USART3)
 extern SerialSideboard Sideboard_R;
 #endif
-#if (defined(CONTROL_PPM_LEFT) && defined(DEBUG_SERIAL_USART3)) || (defined(CONTROL_PPM_RIGHT) && defined(DEBUG_SERIAL_USART2))
-extern volatile uint16_t ppm_captured_value[PPM_NUM_CHANNELS+1];
-#endif
-#if (defined(CONTROL_PWM_LEFT) && defined(DEBUG_SERIAL_USART3)) || (defined(CONTROL_PWM_RIGHT) && defined(DEBUG_SERIAL_USART2))
-extern volatile uint16_t pwm_captured_ch1_value;
-extern volatile uint16_t pwm_captured_ch2_value;
-#endif
+
 
 
 //------------------------------------------------------------------------
@@ -141,24 +128,20 @@ typedef struct{
   uint16_t  checksum;
 } SerialFeedback;
 static SerialFeedback Feedback;
+
+typedef struct{
+   uint16_t  start;
+   int16_t   steer;
+   int16_t   speed;
+   uint16_t  checksum;
+    } SCommand;
+static SCommand Command;
 #endif
 #if defined(FEEDBACK_SERIAL_USART2)
 static uint8_t sideboard_leds_L;
 #endif
 #if defined(FEEDBACK_SERIAL_USART3)
 static uint8_t sideboard_leds_R;
-#endif
-
-#ifdef VARIANT_TRANSPOTTER
-  extern uint8_t  nunchuk_connected;
-  extern float    setDistance;  
-
-  static uint8_t  checkRemote = 0;
-  static uint16_t distance;
-  static float    steering;
-  static int      distanceErr;  
-  static int      lastDistance = 0;
-  static uint16_t transpotter_counter = 0;
 #endif
 
 static int16_t    speed;                // local variable for speed. -1000 to 1000
@@ -174,6 +157,7 @@ static int16_t    speed;                // local variable for speed. -1000 to 10
 
 static uint32_t    inactivity_timeout_counter;
 static MultipleTap MultipleTapBrake;    // define multiple tap functionality for the Brake pedal
+
 
 
 int main(void) {
@@ -206,7 +190,9 @@ int main(void) {
   MX_ADC2_Init();
   BLDC_Init();        // BLDC Controller Init
 
-  HAL_GPIO_WritePin(OFF_PORT, OFF_PIN, GPIO_PIN_SET);   // Activate Latch
+  //HAL_GPIO_WritePin(SWITCH_PORT, SWITCH_PIN, GPIO_PIN_SET);   // Activate Latch
+  //HAL_GPIO_WritePin(OFF_PORT,OFF_PIN, GPIO_PIN_SET);   // Activate Latch this switches board off if open
+	
   Input_Lim_Init();   // Input Limitations Init
   Input_Init();       // Input Init
 
@@ -230,8 +216,21 @@ int main(void) {
    // HAL_Delay(DELAY_IN_MAIN_LOOP);        // delay in ms
     
     readCommand();                        // Read Command: input1[inIdx].cmd, input2[inIdx].cmd
-    //if (main_loop_counter % 25 == 0)   {
-		//	printf("input1 cmd input1[inIdx].cmd:%i input2[inIdx].cmd:%i,/r/n",input1[inIdx].cmd,input2[inIdx].cmd);}
+	//printf("commandl low: %d commandr low: %d commandl high:%d commandr high:%d\r\n",input1[inIdx].cmd, input2[inIdx].cmd,input1[inIdx].raw, input2[inIdx].raw);
+	// SEND raw high to next controller
+	if (main_loop_counter % 2 == 0 && !timeoutFlgSerial)
+	{ 
+			Command.start    = (uint16_t)SERIAL_START_FRAME;
+			Command.steer    = (int16_t) input1[inIdx].raw;
+			Command.speed    = (int16_t) input2[inIdx].raw;
+			Command.checksum = (uint16_t)(Command.start ^ Command.steer ^ Command.speed);	
+			if(__HAL_DMA_GET_COUNTER(huart3.hdmatx) == 0)
+			{
+				HAL_UART_Transmit_DMA(&huart3, (uint32_t *)&Command, sizeof(Command));
+			}
+	}
+   // if (main_loop_counter % 25 == 0)   {
+	//		printf("input1 cmd input1[inIdx].cmd:%i input2[inIdx].cmd:%i,/r/n",input1[inIdx].cmd,input2[inIdx].cmd);}
 		
 		calcAvgSpeed();                       // Calculate average measured speed: speedAvg, speedAvgAb		
     
@@ -257,41 +256,8 @@ int main(void) {
         standstillHold();                                           // Apply Standstill Hold functionality. Only available and makes sense for VOLTAGE or TORQUE Mode
       #endif
 
-      #ifdef VARIANT_HOVERCAR
-      if (inIdx == CONTROL_ADC) {                                   // Only use use implementation below if pedals are in use (ADC input)
-        if (speedAvgAbs < 60) {                                     // Check if Hovercar is physically close to standstill to enable Double tap detection on Brake pedal for Reverse functionality
-          multipleTapDet(input1[inIdx].cmd, HAL_GetTick(), &MultipleTapBrake); // Brake pedal in this case is "input1" variable
-        }
-
-        if (input1[inIdx].cmd > 30) {                               // If Brake pedal (input1) is pressed, bring to 0 also the Throttle pedal (input2) to avoid "Double pedal" driving
-          input2[inIdx].cmd = (int16_t)((input2[inIdx].cmd * speedBlend) >> 15);
-          cruiseControl((uint8_t)rtP_Left.b_cruiseCtrlEna);         // Cruise control deactivated by Brake pedal if it was active
-        }
-      }
-      #endif
-
       #ifdef ELECTRIC_BRAKE_ENABLE
         electricBrake(speedBlend, MultipleTapBrake.b_multipleTap);  // Apply Electric Brake. Only available and makes sense for TORQUE Mode
-      #endif
-
-      #ifdef VARIANT_HOVERCAR
-      if (inIdx == CONTROL_ADC) {                                   // Only use use implementation below if pedals are in use (ADC input)
-        if (speedAvg > 0) {                                         // Make sure the Brake pedal is opposite to the direction of motion AND it goes to 0 as we reach standstill (to avoid Reverse driving by Brake pedal) 
-          input1[inIdx].cmd = (int16_t)((-input1[inIdx].cmd * speedBlend) >> 15);
-        } else {
-          input1[inIdx].cmd = (int16_t)(( input1[inIdx].cmd * speedBlend) >> 15);
-        }
-      }
-      #endif
-
-      #ifdef VARIANT_SKATEBOARD
-        if (input2[inIdx].cmd < 0) {                                // When Throttle is negative, it acts as brake. This condition is to make sure it goes to 0 as we reach standstill (to avoid Reverse driving) 
-          if (speedAvg > 0) {                                       // Make sure the braking is opposite to the direction of motion
-            input2[inIdx].cmd  = (int16_t)(( input2[inIdx].cmd * speedBlend) >> 15);
-          } else {
-            input2[inIdx].cmd  = (int16_t)((-input2[inIdx].cmd * speedBlend) >> 15);
-          }
-        }
       #endif
 
       // ####### LOW-PASS FILTER #######
@@ -301,18 +267,6 @@ int main(void) {
       filtLowPass32(speedRateFixdt >> 4, FILTER, &speedFixdt);
       steer = (int16_t)(steerFixdt >> 16);  // convert fixed-point to integer
       speed = (int16_t)(speedFixdt >> 16);  // convert fixed-point to integer
-
-      // ####### VARIANT_HOVERCAR #######
-      #ifdef VARIANT_HOVERCAR
-      if (inIdx == CONTROL_ADC) {               // Only use use implementation below if pedals are in use (ADC input)
-        if (!MultipleTapBrake.b_multipleTap) {  // Check driving direction
-          speed = steer + speed;                // Forward driving: in this case steer = Brake, speed = Throttle
-        } else {
-          speed = steer - speed;                // Reverse driving: in this case steer = Brake, speed = Throttle
-        }
-        steer = 0;                              // Do not apply steering to avoid side effects if STEER_COEFFICIENT is NOT 0
-      }
-      #endif
 
       // ####### MIXER #######
       // cmdR = CLAMP((int)(speed * SPEED_COEFFICIENT -  steer * STEER_COEFFICIENT), INPUT_MIN, INPUT_MAX);
@@ -332,105 +286,6 @@ int main(void) {
           pwml = cmdL;
         #endif
       }
-    #endif
-
-    #ifdef VARIANT_TRANSPOTTER
-      distance    = CLAMP(input1[inIdx].cmd - 180, 0, 4095);
-      steering    = (input2[inIdx].cmd - 2048) / 2048.0;
-      distanceErr = distance - (int)(setDistance * 1345);
-
-      if (nunchuk_connected == 0) {
-        cmdL = cmdL * 0.8f + (CLAMP(distanceErr + (steering*((float)MAX(ABS(distanceErr), 50)) * ROT_P), -850, 850) * -0.2f);
-        cmdR = cmdR * 0.8f + (CLAMP(distanceErr - (steering*((float)MAX(ABS(distanceErr), 50)) * ROT_P), -850, 850) * -0.2f);
-        if ((cmdL < cmdL_prev + 50 && cmdL > cmdL_prev - 50) && (cmdR < cmdR_prev + 50 && cmdR > cmdR_prev - 50)) {
-          if (distanceErr > 0) {
-            enable = 1;
-          }
-          if (distanceErr > -300) {
-            #ifdef INVERT_R_DIRECTION
-              pwmr = cmdR;
-            #else
-              pwmr = -cmdR;
-            #endif
-            #ifdef INVERT_L_DIRECTION
-              pwml = -cmdL;
-            #else
-              pwml = cmdL;
-            #endif
-
-            if (checkRemote) {
-              if (!HAL_GPIO_ReadPin(LED_PORT, LED_PIN)) {
-                //enable = 1;
-              } else {
-                enable = 0;
-              }
-            }
-          } else {
-            enable = 0;
-          }
-        }
-        timeoutCntGen = 0;
-        timeoutFlgGen = 0;
-      }
-
-      if (timeoutFlgGen) {
-        pwml = 0;
-        pwmr = 0;
-        enable = 0;
-        #ifdef SUPPORT_LCD
-          LCD_SetLocation(&lcd,  0, 0); LCD_WriteString(&lcd, "Len:");
-          LCD_SetLocation(&lcd,  8, 0); LCD_WriteString(&lcd, "m(");
-          LCD_SetLocation(&lcd, 14, 0); LCD_WriteString(&lcd, "m)");
-        #endif
-        HAL_Delay(1000);
-        nunchuk_connected = 0;
-      }
-
-      if ((distance / 1345.0) - setDistance > 0.5 && (lastDistance / 1345.0) - setDistance > 0.5) { // Error, robot too far away!
-        enable = 0;
-        beepLong(5);
-        #ifdef SUPPORT_LCD
-          LCD_ClearDisplay(&lcd);
-          HAL_Delay(5);
-          LCD_SetLocation(&lcd, 0, 0); LCD_WriteString(&lcd, "Emergency Off!");
-          LCD_SetLocation(&lcd, 0, 1); LCD_WriteString(&lcd, "Keeper too fast.");
-        #endif
-        poweroff();
-      }
-
-      #ifdef SUPPORT_NUNCHUK
-        if (transpotter_counter % 500 == 0) {
-          if (nunchuk_connected == 0 && enable == 0) {
-            if (Nunchuk_Ping()) {
-              HAL_Delay(500);
-              Nunchuk_Init();
-              #ifdef SUPPORT_LCD
-                LCD_SetLocation(&lcd, 0, 0); LCD_WriteString(&lcd, "Nunchuk Control");
-              #endif
-              timeoutCntGen = 0;
-              timeoutFlgGen = 0;
-              HAL_Delay(1000);
-              nunchuk_connected = 1;
-            }
-          }
-        }   
-      #endif
-
-      #ifdef SUPPORT_LCD
-        if (transpotter_counter % 100 == 0) {
-          if (LCDerrorFlag == 1 && enable == 0) {
-
-          } else {
-            if (nunchuk_connected == 0) {
-              LCD_SetLocation(&lcd,  4, 0); LCD_WriteFloat(&lcd,distance/1345.0,2);
-              LCD_SetLocation(&lcd, 10, 0); LCD_WriteFloat(&lcd,setDistance,2);
-            }
-            LCD_SetLocation(&lcd,  4, 1); LCD_WriteFloat(&lcd,batVoltage, 1);
-            // LCD_SetLocation(&lcd, 11, 1); LCD_WriteFloat(&lcd,MAX(ABS(currentR), ABS(currentL)),2);
-          }
-        }
-      #endif
-      transpotter_counter++;
     #endif
 
     // ####### SIDEBOARDS HANDLING #######
@@ -482,8 +337,8 @@ int main(void) {
 		// changed scale of rotation to mechanical degrees, 90 steps is a full rotation
 		//	PIDL.feedback = (MotorPosL*2000)/5400; // scale to 2000 units per rotation   sf = .37 =2000/(360 deg*15pole pairs= 5400 elec deg)
 		//	PIDR.feedback = (MotorPosR*2000)/5400;  //minimum step is 60 deg elec phase angle, or 4 deg mechanical angle
-		PIDL.feedback = (MotorPosL*90)/5400; // scale to 2000 units per rotation   sf = .37 =2000/(360 deg*15pole pairs= 5400 elec deg)
-		PIDR.feedback = (MotorPosR*90)/5400;  //minimum step is 60 deg elec phase angle, or 4 deg mechanical angle
+		PIDL.feedback = (MotorPosL*2000)/5400; // scale to 2000 units per rotation   sf = .37 =2000/(360 deg*15pole pairs= 5400 elec deg)
+		PIDR.feedback = (MotorPosR*2000)/5400;  //minimum step is 60 deg elec phase angle, or 4 deg mechanical angle
 		PID(&PIDL);// left pid control
 	  //print_PID(PIDL);  
 		PID(&PIDR);// right pid control
@@ -529,14 +384,14 @@ int main(void) {
 //          board_temp_adcFilt,       // 7: for board temperature calibration
 //          board_temp_deg_c);        // 8: for verifying board temperature calibration
 //				}
-				 if (main_loop_counter % 1 == 0) {    //  Send PID data periodically every 5 ms
+			/*	 if (main_loop_counter % 1 == 0) {    //  Send PID data periodically every 5 ms
         
 				printf("IL %i FL %i IR %i FR %i\r\n",
 				  PIDL.input,
 					PIDL.feedback,
 				  PIDR.input,
 					PIDR.feedback
-					 );}
+					 );}*/
 					
           //cmdL,                     // 3: output command: [-1000, 1000]
           //cmdR,                     // 4: output command: [-1000, 1000]           
@@ -572,7 +427,7 @@ int main(void) {
     #endif
 
     // ####### FEEDBACK SERIAL OUT #######
-    #if defined(FEEDBACK_SERIAL_USART2) || defined(FEEDBACK_SERIAL_USART3)
+ /*   #if defined(FEEDBACK_SERIAL_USART2) || defined(FEEDBACK_SERIAL_USART3)  // disabled for passthru
       if (main_loop_counter % 2 == 0) {    // Send data periodically every 10 ms
         Feedback.start	        = (uint16_t)SERIAL_START_FRAME;
         Feedback.cmd1           = (int16_t)input1[inIdx].cmd;
@@ -601,7 +456,7 @@ int main(void) {
           }
         #endif
       }
-    #endif
+    #endif*/
 
     // ####### POWEROFF BY POWER-BUTTON #######
     poweroffPressCheck();

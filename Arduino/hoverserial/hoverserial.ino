@@ -25,10 +25,11 @@
 // ########################## DEFINES ##########################
 #define HOVER_SERIAL_BAUD   115200      // [-] Baud rate for HoverSerial (used to communicate with the hoverboard)
 #define SERIAL_BAUD         115200      // [-] Baud rate for built-in Serial (used for the Serial Monitor)
-#define START_FRAME         0xABCD     	// [-] Start frme definition for reliable serial communication
+#define START_FRAME         0xABCD   	// [-] Start frme definition for reliable serial communication
+#define START_RETURN        0xCDAB
 #define TIME_SEND           100         // [ms] Sending time interval
-#define SPEED_MAX_TEST      300         // [-] Maximum speed for testing
-// #define DEBUG_RX                        // [-] Debug received data. Prints all bytes to serial (comment-out to disable)
+#define SPEED_MAX_TEST      127       // [-] Maximum speed for testing
+//#define DEBUG_RX                        // [-] Debug received data. Prints all bytes to serial (comment-out to disable)
 
 #include <SoftwareSerial.h>
 SoftwareSerial HoverSerial(2,3);        // RX, TX
@@ -47,7 +48,8 @@ typedef struct{
    uint16_t checksum;
 } SerialCommand;
 SerialCommand Command;
-
+SerialCommand NewCommand;
+SerialCommand Cmd;
 typedef struct{
    uint16_t start;
    int16_t  cmd1;
@@ -67,30 +69,31 @@ void setup()
 {
   Serial.begin(SERIAL_BAUD);
   Serial.println("Hoverboard Serial v1.0");
-
-  HoverSerial.begin(HOVER_SERIAL_BAUD);
+  Serial1.begin(SERIAL_BAUD);
+  //HoverSerial.begin(HOVER_SERIAL_BAUD);
   pinMode(LED_BUILTIN, OUTPUT);
 }
 
 // ########################## SEND ##########################
 void Send(int16_t uSteer, int16_t uSpeed)
 {
-  // Create command
+  // Create command Send(subir,inclinar);
   Command.start    = (uint16_t)START_FRAME;
   Command.steer    = (int16_t)uSteer;
   Command.speed    = (int16_t)uSpeed;
   Command.checksum = (uint16_t)(Command.start ^ Command.steer ^ Command.speed);
 
   // Write to Serial
-  HoverSerial.write((uint8_t *) &Command, sizeof(Command)); 
+  Serial1.write((uint8_t *) &Command, sizeof(Command)); 
 }
 
 // ########################## RECEIVE ##########################
 void Receive()
 {
-    // Check for new data availability in the Serial buffer
-    if (HoverSerial.available()) {
-        incomingByte 	  = HoverSerial.read();                                   // Read the incoming byte
+ 
+    //Check for new data availability in the Serial buffer
+    if (Serial1.available()) {
+        incomingByte 	  = Serial1.read();                                   // Read the incoming byte
         bufStartFrame	= ((uint16_t)(incomingByte) << 8) | incomingBytePrev;       // Construct the start frame
     }
     else {
@@ -100,39 +103,34 @@ void Receive()
   // If DEBUG_RX is defined print all incoming bytes
   #ifdef DEBUG_RX
         Serial.print(incomingByte);
+        Serial.print(":");
         return;
     #endif
 
     // Copy received data
-    if (bufStartFrame == START_FRAME) {	                    // Initialize if new data is detected
-        p       = (byte *)&NewFeedback;
+    if (bufStartFrame == START_FRAME) {	 // Initialize if new data is detected
+        p       = (byte *)&NewCommand;
         *p++    = incomingBytePrev;
         *p++    = incomingByte;
         idx     = 2;	
-    } else if (idx >= 2 && idx < sizeof(SerialFeedback)) {  // Save the new received data
+    } else if (idx >= 2 && idx < sizeof(SerialCommand)) {  // Save the new received data
         *p++    = incomingByte; 
         idx++;
     }	
     
     // Check if we reached the end of the package
-    if (idx == sizeof(SerialFeedback)) {
+    if (idx == sizeof(SerialCommand)) {
         uint16_t checksum;
-        checksum = (uint16_t)(NewFeedback.start ^ NewFeedback.cmd1 ^ NewFeedback.cmd2 ^ NewFeedback.speedR_meas ^ NewFeedback.speedL_meas
-                            ^ NewFeedback.batVoltage ^ NewFeedback.boardTemp ^ NewFeedback.cmdLed);
+        checksum = (uint16_t)(NewCommand.start ^ NewCommand.steer ^ NewCommand.speed);
 
         // Check validity of the new data
-        if (NewFeedback.start == START_FRAME && checksum == NewFeedback.checksum) {
+        if (NewCommand.start == START_FRAME /*&& checksum == NewCommand.checksum*/) {
             // Copy the new data
-            memcpy(&Feedback, &NewFeedback, sizeof(SerialFeedback));
+            memcpy(&Cmd, &NewCommand, sizeof(SerialCommand));
 
             // Print data to built-in Serial
-            Serial.print("1: ");   Serial.print(Feedback.cmd1);
-            Serial.print(" 2: ");  Serial.print(Feedback.cmd2);
-            Serial.print(" 3: ");  Serial.print(Feedback.speedR_meas);
-            Serial.print(" 4: ");  Serial.print(Feedback.speedL_meas);
-            Serial.print(" 5: ");  Serial.print(Feedback.batVoltage);
-            Serial.print(" 6: ");  Serial.print(Feedback.boardTemp);
-            Serial.print(" 7: ");  Serial.println(Feedback.cmdLed);
+            Serial.print(" 1: ");   Serial.print(Cmd.steer);
+            Serial.print(" 2: ");  Serial.println(Cmd.speed);
         } else {
           Serial.println("Non-valid data skipped");
         }
@@ -145,28 +143,29 @@ void Receive()
 
 // ########################## LOOP ##########################
 
-unsigned long iTimeSend = 0;
-int iTestMax = SPEED_MAX_TEST;
-int iTest = 0;
-
-void loop(void)
-{ 
-  unsigned long timeNow = millis();
-
-  // Check for new received data
-  Receive();
-
-  // Send commands
-  if (iTimeSend > timeNow) return;
-  iTimeSend = timeNow + TIME_SEND;
-  Send(0, SPEED_MAX_TEST - 2*abs(iTest));
-
-  // Calculate test command signal
-  iTest += 10;
-  if (iTest > iTestMax) iTest = -iTestMax;
-
-  // Blink the LED
-  digitalWrite(LED_BUILTIN, (timeNow%2000)<1000);
+void loop()
+{
+  int8_t subiriz,subirder,incliz,inclder;
+  int16_t subir,inclinar;
+  for(int i=90; i<110;i++ )
+  {
+    subiriz = i; subirder = i;
+    incliz = 100; inclder= 100;
+    
+    subir = (subiriz << 8) | subirder ;
+    inclinar = (incliz <<8) | inclder ;
+    Send(subir,inclinar);
+    delay(10);
+  }
+    for(int i=110; i>90;i-- )
+  {
+    subiriz = i; subirder = i;
+    incliz = 100; inclder=100;
+    subir = (subiriz << 8) | subirder ;
+    inclinar = (incliz <<8) | inclder ;
+    Send(subir,inclinar);
+    delay(10);
+  } 
 }
 
 // ########################## END ##########################

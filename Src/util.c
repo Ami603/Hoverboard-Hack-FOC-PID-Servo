@@ -270,27 +270,15 @@ void BLDC_Init(void) {
 
 void Input_Lim_Init(void) {     // Input Limitations - ! Do NOT touch !
   if (rtP_Left.b_fieldWeakEna || rtP_Right.b_fieldWeakEna) {
-    INPUT_MAX = MAX( 45, FIELD_WEAK_HI);
-    INPUT_MIN = MIN(-45,-FIELD_WEAK_HI);
+    INPUT_MAX = MAX( 1000, FIELD_WEAK_HI);
+    INPUT_MIN = MIN(-1000,-FIELD_WEAK_HI);
   } else {
-    INPUT_MAX =  45;  // 90 mechanical degrees
-    INPUT_MIN = -45;
+    INPUT_MAX =  1000;  // 90 mechanical degrees
+    INPUT_MIN =  -1000;
   }
 }
 
 void Input_Init(void) {
-  #if defined(CONTROL_PPM_LEFT) || defined(CONTROL_PPM_RIGHT)
-    PPM_Init();
-  #endif
-
- #if defined(CONTROL_PWM_LEFT) || defined(CONTROL_PWM_RIGHT)
-    PWM_Init();
-  #endif
-
-  #ifdef CONTROL_NUNCHUK
-    I2C_Init();
-    Nunchuk_Init();
-  #endif
 
   #if defined(DEBUG_SERIAL_USART2) || defined(CONTROL_SERIAL_USART2) || defined(FEEDBACK_SERIAL_USART2) || defined(SIDEBOARD_SERIAL_USART2)
     UART2_Init();
@@ -329,67 +317,21 @@ void Input_Init(void) {
       for (uint8_t i=0; i<INPUTS_NR; i++) {
         if (input1[i].typDef == 3) {  // If Input type defined is 3 (auto), identify the input type based on the values from config.h
           input1[i].typ = checkInputType(input1[i].min, input1[i].mid, input1[i].max);
+		  printf("INPUT %d checked TYPE %d\n",i,input1[i].typ); 
         } else {
           input1[i].typ = input1[i].typDef;
+		  printf("input %d TYPE %d\n",i,input1[i].typ); 
         }
         if (input2[i].typDef == 3) {
           input2[i].typ = checkInputType(input2[i].min, input2[i].mid, input2[i].max);
+		printf("INPUT %d checked TYPE %d\n",i,input2[i].typ); 
         } else {
           input2[i].typ = input2[i].typDef;
+		printf("input %d TYPE %d\n",i,input2[i].typ); 
         }
       }
     }
     HAL_FLASH_Lock();
-  #endif
-
-  #ifdef VARIANT_TRANSPOTTER
-    enable = 1;
-
-    HAL_FLASH_Unlock();
-    EE_Init();            /* EEPROM Init */
-    EE_ReadVariable(VirtAddVarTab[0], &saveValue);
-    HAL_FLASH_Lock();
-
-    setDistance = saveValue / 1000.0;
-    if (setDistance < 0.2) {
-      setDistance = 1.0;
-    }
-  #endif
-
-  #if defined(DEBUG_I2C_LCD) || defined(SUPPORT_LCD)
-    I2C_Init();
-    HAL_Delay(50);
-    lcd.pcf8574.PCF_I2C_ADDRESS = 0x27;
-    lcd.pcf8574.PCF_I2C_TIMEOUT = 5;
-    lcd.pcf8574.i2c             = hi2c2;
-    lcd.NUMBER_OF_LINES         = NUMBER_OF_LINES_2;
-    lcd.type                    = TYPE0;
-
-    if(LCD_Init(&lcd)!=LCD_OK) {
-        // error occured
-        //TODO while(1);
-    }
-
-    LCD_ClearDisplay(&lcd);
-    HAL_Delay(5);
-    LCD_SetLocation(&lcd, 0, 0);
-    #ifdef VARIANT_TRANSPOTTER
-      LCD_WriteString(&lcd, "TranspOtter V2.1");
-    #else
-      LCD_WriteString(&lcd, "Hover V2.0");
-    #endif
-    LCD_SetLocation(&lcd,  0, 1); LCD_WriteString(&lcd, "Initializing...");
-  #endif
-
-  #if defined(VARIANT_TRANSPOTTER) && defined(SUPPORT_LCD)
-    LCD_ClearDisplay(&lcd);
-    HAL_Delay(5);
-    LCD_SetLocation(&lcd,  0, 1); LCD_WriteString(&lcd, "Bat:");
-    LCD_SetLocation(&lcd,  8, 1); LCD_WriteString(&lcd, "V");
-    LCD_SetLocation(&lcd, 15, 1); LCD_WriteString(&lcd, "A");
-    LCD_SetLocation(&lcd,  0, 0); LCD_WriteString(&lcd, "Len:");
-    LCD_SetLocation(&lcd,  8, 0); LCD_WriteString(&lcd, "m(");
-    LCD_SetLocation(&lcd, 14, 0); LCD_WriteString(&lcd, "m)");
   #endif
 }
 
@@ -799,108 +741,17 @@ void calcInputCmd(InputStruct *in, int16_t out_min, int16_t out_max) {
  * Function to read the Input Raw values from various input devices
  */
 void readInputRaw(void) {
-    #ifdef CONTROL_ADC
-    if (inIdx == CONTROL_ADC) {
-      input1[inIdx].raw = adc_buffer.l_tx2;
-      input2[inIdx].raw = adc_buffer.l_rx2;
-    }
-    #endif
-
-    #if defined(CONTROL_NUNCHUK) || defined(SUPPORT_NUNCHUK)
-    if (nunchuk_connected) {
-      Nunchuk_Read();
-      if (inIdx == CONTROL_NUNCHUK) {
-        input1[inIdx].raw = (nunchuk_data[0] - 127) * 8; // X axis 0-255
-        input2[inIdx].raw = (nunchuk_data[1] - 128) * 8; // Y axis 0-255
-      }
-      #ifdef SUPPORT_BUTTONS
-        button1 = (uint8_t)nunchuk_data[5] & 1;
-        button2 = (uint8_t)(nunchuk_data[5] >> 1) & 1;
-      #endif
-    }
-    #endif
-
     #if defined(CONTROL_SERIAL_USART2)
     if (inIdx == CONTROL_SERIAL_USART2) {
-      #ifdef CONTROL_IBUS
-        for (uint8_t i = 0; i < (IBUS_NUM_CHANNELS * 2); i+=2) {
-          ibusL_captured_value[(i/2)] = CLAMP(commandL.channels[i] + (commandL.channels[i+1] << 8) - 1000, 0, INPUT_MAX); // 1000-2000 -> 0-1000
-        }
-        input1[inIdx].raw = (ibusL_captured_value[0] - 500) * 2;
-        input2[inIdx].raw = (ibusL_captured_value[1] - 500) * 2; 
-      #else
         input1[inIdx].raw = commandL.steer;
         input2[inIdx].raw = commandL.speed;
-      #endif
     }
     #endif
     #if defined(CONTROL_SERIAL_USART3)
     if (inIdx == CONTROL_SERIAL_USART3) {
-      #ifdef CONTROL_IBUS
-        for (uint8_t i = 0; i < (IBUS_NUM_CHANNELS * 2); i+=2) {
-          ibusR_captured_value[(i/2)] = CLAMP(commandR.channels[i] + (commandR.channels[i+1] << 8) - 1000, 0, INPUT_MAX); // 1000-2000 -> 0-1000
-        }
-        input1[inIdx].raw = (ibusR_captured_value[0] - 500) * 2;
-        input2[inIdx].raw = (ibusR_captured_value[1] - 500) * 2; 
-      #else
         input1[inIdx].raw = commandR.steer;
         input2[inIdx].raw = commandR.speed;
-      #endif
     }
-    #endif
-
-    #if defined(SIDEBOARD_SERIAL_USART2)
-    if (inIdx == SIDEBOARD_SERIAL_USART2) {
-      input1[inIdx].raw = Sideboard_L.cmd1;
-      input2[inIdx].raw = Sideboard_L.cmd2;
-    }
-    #endif
-    #if defined(SIDEBOARD_SERIAL_USART3)
-    if (inIdx == SIDEBOARD_SERIAL_USART3) {
-      input1[inIdx].raw = Sideboard_R.cmd1;
-      input2[inIdx].raw = Sideboard_R.cmd2;
-    }
-    #endif
-
-    #if defined(CONTROL_PPM_LEFT)
-    if (inIdx == CONTROL_PPM_LEFT) {
-      input1[inIdx].raw = (ppm_captured_value[0] - 500) * 2;
-      input2[inIdx].raw = (ppm_captured_value[1] - 500) * 2;
-    }
-    #endif
-    #if defined(CONTROL_PPM_RIGHT)
-    if (inIdx == CONTROL_PPM_RIGHT) {
-      input1[inIdx].raw = (ppm_captured_value[0] - 500) * 2;
-      input2[inIdx].raw = (ppm_captured_value[1] - 500) * 2;
-    }
-    #endif
-    #if (defined(CONTROL_PPM_LEFT) || defined(CONTROL_PPM_RIGHT)) && defined(SUPPORT_BUTTONS)
-      button1 = ppm_captured_value[5] > 500;
-      button2 = 0;
-    #endif
-
-    #if defined(CONTROL_PWM_LEFT)
-    if (inIdx == CONTROL_PWM_LEFT) {
-      input1[inIdx].raw = (pwm_captured_ch1_value - 500) * 2;
-      input2[inIdx].raw = (pwm_captured_ch2_value - 500) * 2;
-    }
-    #endif
-    #if defined(CONTROL_PWM_RIGHT)
-    if (inIdx == CONTROL_PWM_RIGHT) {
-      input1[inIdx].raw = (pwm_captured_ch1_value - 500) * 2;
-      input2[inIdx].raw = (pwm_captured_ch2_value - 500) * 2;
-    }
-    #endif
-
-    #ifdef VARIANT_TRANSPOTTER
-      #ifdef GAMETRAK_CONNECTION_NORMAL
-        input1[inIdx].cmd = adc_buffer.l_rx2;
-        input2[inIdx].cmd = adc_buffer.l_tx2;
-      #endif
-      #ifdef GAMETRAK_CONNECTION_ALTERNATE
-        input1[inIdx].cmd = adc_buffer.l_tx2;
-        input2[inIdx].cmd = adc_buffer.l_rx2;
-      #endif
     #endif
 }
 
@@ -908,21 +759,6 @@ void readInputRaw(void) {
  * Function to handle the ADC, UART and General timeout (Nunchuk, PPM, PWM)
  */
 void handleTimeout(void) {
-    #ifdef CONTROL_ADC
-    if (inIdx == CONTROL_ADC) {
-      // If input1 or Input2 is either below MIN - Threshold or above MAX + Threshold, ADC protection timeout
-      if (IN_RANGE(input1[inIdx].raw, input1[inIdx].min - ADC_PROTECT_THRESH, input1[inIdx].max + ADC_PROTECT_THRESH) &&
-          IN_RANGE(input2[inIdx].raw, input2[inIdx].min - ADC_PROTECT_THRESH, input2[inIdx].max + ADC_PROTECT_THRESH)) {
-          timeoutFlgADC = 0;                            // Reset the timeout flag
-          timeoutCntADC = 0;                            // Reset the timeout counter
-      } else {
-        if (timeoutCntADC++ >= ADC_PROTECT_TIMEOUT) {   // Timeout qualification
-          timeoutFlgADC = 1;                            // Timeout detected
-          timeoutCntADC = ADC_PROTECT_TIMEOUT;          // Limit timout counter value
-        }
-      }
-    }
-    #endif
 
     #if defined(CONTROL_SERIAL_USART2) || defined(SIDEBOARD_SERIAL_USART2)
       if (timeoutCntSerial_L++ >= SERIAL_TIMEOUT) {     // Timeout qualification
@@ -1010,36 +846,22 @@ void handleTimeout(void) {
  * - MIN/MAX limitations and deadband
  */
 void readCommand(void) {
+	int16_t rawal,rawbl,rawah,rawbh;	
     readInputRaw();
+	//extract second board info here
+	rawal = input1[inIdx].raw & 0x00FF;
+	rawbl = input2[inIdx].raw & 0x00FF;
+	rawah = (input1[inIdx].raw >> 8) & 0x00FF;
+	rawbh = (input2[inIdx].raw >> 8) & 0x00FF;
+	input1[inIdx].raw = rawal*10;
+	input2[inIdx].raw = rawbl*10;
+    calcInputCmd(&input1[inIdx], INPUT_MIN, INPUT_MAX);  // CLAMP/MAP to INPUT_MIN~INPUT_MAX, to inputx.cmd
+    calcInputCmd(&input2[inIdx], INPUT_MIN, INPUT_MAX);
 
-    #if !defined(VARIANT_HOVERBOARD) && !defined(VARIANT_TRANSPOTTER)
-      calcInputCmd(&input1[inIdx], INPUT_MIN, INPUT_MAX);
-      #if !defined(VARIANT_SKATEBOARD)
-        calcInputCmd(&input2[inIdx], INPUT_MIN, INPUT_MAX);
-      #else
-        calcInputCmd(&input2[inIdx], INPUT_BRK, INPUT_MAX);
-      #endif
-    #endif
-    
+	input1[inIdx].raw = rawah;	// we use raw to return next driver values
+	input2[inIdx].raw = rawbh;
+	
     handleTimeout();
-
-    #ifdef VARIANT_HOVERCAR
-    if (inIdx == CONTROL_ADC) {
-      brakePressed = (uint8_t)(input1[inIdx].cmd > 50);
-    }
-    else {
-      brakePressed = (uint8_t)(input2[inIdx].cmd < -50);
-    }
-    #endif
-
-    #if defined(SUPPORT_BUTTONS_LEFT) || defined(SUPPORT_BUTTONS_RIGHT)
-      button1 = !HAL_GPIO_ReadPin(BUTTON1_PORT, BUTTON1_PIN);
-      button2 = !HAL_GPIO_ReadPin(BUTTON2_PORT, BUTTON2_PIN);
-    #endif
-
-    #if defined(CRUISE_CONTROL_SUPPORT) && (defined(SUPPORT_BUTTONS) || defined(SUPPORT_BUTTONS_LEFT) || defined(SUPPORT_BUTTONS_RIGHT))
-      cruiseControl(button1);                                           // Cruise control activation/deactivation
-    #endif
 }
 
 
@@ -1658,69 +1480,6 @@ void mixerFcn(int16_t rtu_speed, int16_t rtu_steer, int16_t *rty_speedR, int16_t
   *rty_speedL = CLAMP(*rty_speedL, INPUT_MIN, INPUT_MAX);
 }
 
-
-
-/* =========================== Multiple Tap Function =========================== */
-
-  /* multipleTapDet(int16_t u, uint32_t timeNow, MultipleTap *x)
-  * This function detects multiple tap presses, such as double tapping, triple tapping, etc.
-  * Inputs:       u = int16_t (input signal); timeNow = uint32_t (current time)  
-  * Outputs:      x->b_multipleTap (get the output here)
-  */
-void multipleTapDet(int16_t u, uint32_t timeNow, MultipleTap *x) {
-  uint8_t 	b_timeout;
-  uint8_t 	b_hyst;
-  uint8_t 	b_pulse;
-  uint8_t 	z_pulseCnt;
-  uint8_t   z_pulseCntRst;
-  uint32_t 	t_time; 
-
-  // Detect hysteresis
-  if (x->b_hysteresis) {
-    b_hyst = (u > MULTIPLE_TAP_LO);
-  } else {
-    b_hyst = (u > MULTIPLE_TAP_HI);
-  }
-
-  // Detect pulse
-  b_pulse = (b_hyst != x->b_hysteresis);
-
-  // Save time when first pulse is detected
-  if (b_hyst && b_pulse && (x->z_pulseCntPrev == 0)) {
-    t_time = timeNow;
-  } else {
-    t_time = x->t_timePrev;
-  }
-
-  // Create timeout boolean
-  b_timeout = (timeNow - t_time > MULTIPLE_TAP_TIMEOUT);
-
-  // Create pulse counter
-  if ((!b_hyst) && (x->z_pulseCntPrev == 0)) {
-    z_pulseCnt = 0U;
-  } else {
-    z_pulseCnt = b_pulse;
-  }
-
-  // Reset counter if we detected complete tap presses OR there is a timeout
-  if ((x->z_pulseCntPrev >= MULTIPLE_TAP_NR) || b_timeout) {
-    z_pulseCntRst = 0U;
-  } else {
-    z_pulseCntRst = x->z_pulseCntPrev;
-  }
-  z_pulseCnt = z_pulseCnt + z_pulseCntRst;
-
-  // Check if complete tap presses are detected AND no timeout
-  if ((z_pulseCnt >= MULTIPLE_TAP_NR) && (!b_timeout)) {
-    x->b_multipleTap = !x->b_multipleTap;	// Toggle output
-  }
-
-  // Update states
-  x->z_pulseCntPrev = z_pulseCnt;
-  x->b_hysteresis 	= b_hyst;
-  x->t_timePrev 	  = t_time;
-}
-
 //void delay_periodic_loop( volatile uint32_t loop_ms)
 //{
 //  //This routine creates a ms delay for a periodic loop.   It uses a micro second debug clock in a while loop to wait until the total
@@ -1755,9 +1514,6 @@ _Bool update_periodic_loop( volatile uint32_t loop_ms)
   //This routine creates a ms delay for a periodic loop.   It uses a micro second debug clock in a while loop to wait until the total
 	//loop time equals loop_ms.  It differs from a straight HAL_Delay which simply adds a fixed delay to other loop delay.
 	//This routine allows the delay to be smaller to compensate for larger loop delays caused by printf etc.
-	
-	
-	
 	static uint32_t loop_ticks ;
 	static uint32_t last_buzzerTimer = 0;
   static _Bool bflag = true; //initial pass true
@@ -1773,8 +1529,5 @@ _Bool update_periodic_loop( volatile uint32_t loop_ms)
 		{ 
 			last_buzzerTimer = buzzerTimer ;
 			return true;
-		}
-	
-	
-	
+		}	
 }
